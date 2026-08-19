@@ -1,0 +1,17 @@
+name = "emailer"
+main = "worker/index.js"
+compatibility_date = "2026-06-01"
+
+
+routes = [
+  { pattern = "api.thechels.uk", custom_domain = true }
+]
+
+[vars]
+ALLOWED_ORIGIN = "https://thechels.uk"
+THANKYOU_URL = "https:/thechels.uk/c/thanks"
+ERROR_URL = "https://thechels.uk/c/error"
+
+[observability.logs]
+enabled = true
+invocation_logs = true
