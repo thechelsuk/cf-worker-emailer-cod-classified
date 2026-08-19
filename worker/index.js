@@ -6,6 +6,11 @@
  * - Sends email via Resend (https://resend.com)
  * - Redirects to thank-you page on success
  *
+ * Deployed independently of the site: category is intentionally NOT
+ * validated against a fixed list, so new categories can be added on the
+ * site without redeploying this worker. All fields are sanitized to plain
+ * text before they reach your inbox.
+ *
  * Required wrangler.toml vars (set as secrets/vars):
  *   TO_EMAIL          - your destination email address (e.g. you@icloud.com)
  *   FROM_EMAIL        - a verified sender on a domain you've added in Resend
@@ -42,7 +47,7 @@ export default {
         // --- Spam check 1: honeypot field ---
         // Add a hidden field named "_gotcha" to your Jekyll form.
         // Real users won't fill it; bots often do.
-        const honeypot = (form.get("_gotcha") || "").toString().trim();
+        const honeypot = oneLine(form.get("_gotcha"), 200);
         if (honeypot.length > 0) {
             return Response.redirect(env.THANKYOU_URL, 303); // silently "succeed" to not tip off bots
         }
@@ -69,24 +74,28 @@ export default {
         }
 
         // --- Extract fields ---
+        // Short fields are forced to a single line (no newlines / control
+        // chars) so a tampered form can't inject email headers or garbage.
+        // The description keeps line breaks but strips other control chars.
         const advert = {
-            name: sanitize(form.get("name")),
-            email: sanitize(form.get("email")),
-            category: sanitize(form.get("category")),
-            title: sanitize(form.get("title")),
-            company: sanitize(form.get("company")),
-            location: sanitize(form.get("location")),
-            salary: sanitize(form.get("salary")),
-            jobType: sanitize(form.get("job_type")),
-            description: sanitize(form.get("description")),
-            applyUrl: sanitize(form.get("apply_url")),
-            expires: sanitize(form.get("expires")),
+            name: oneLine(form.get("name"), 200),
+            email: oneLine(form.get("email"), 320),
+            category: oneLine(form.get("category"), 100),
+            title: oneLine(form.get("title"), 200),
+            company: oneLine(form.get("company"), 200),
+            location: oneLine(form.get("location"), 200),
+            salary: oneLine(form.get("salary"), 100),
+            jobType: oneLine(form.get("job_type"), 100),
+            description: multiLine(form.get("description"), 5000),
+            applyUrl: oneLine(form.get("apply_url"), 500),
+            expires: oneLine(form.get("expires"), 100),
         };
 
         // --- Validation ---
         // Required (matches the form's `required` attributes):
         //   name, email, category, title, description
-        // Everything else is optional.
+        // Everything else is optional. Category value itself is NOT checked
+        // against a list — any non-empty string is accepted.
         if (
             !advert.name ||
             !advert.email ||
@@ -108,8 +117,34 @@ export default {
     },
 };
 
-function sanitize(value) {
-    return (value || "").toString().trim().slice(0, 5000);
+// Single-line field: trim, strip ALL control chars (incl. newlines/tabs),
+// collapse repeated whitespace, then cap length. Used for everything that
+// should never contain a line break — including the subject-feeding title.
+function oneLine(value, max) {
+    return (
+        (value || "")
+            .toString()
+            // eslint-disable-next-line no-control-regex
+            .replace(/[\u0000-\u001F\u007F]/g, " ")
+            .replace(/\s+/g, " ")
+            .trim()
+            .slice(0, max)
+    );
+}
+
+// Multi-line field: preserve newlines, but strip other control chars and
+// normalise line endings. Used for the free-text description.
+function multiLine(value, max) {
+    return (
+        (value || "")
+            .toString()
+            .replace(/\r\n?/g, "\n")
+            // strip control chars except newline (\u000A)
+            // eslint-disable-next-line no-control-regex
+            .replace(/[\u0000-\u0009\u000B-\u001F\u007F]/g, " ")
+            .trim()
+            .slice(0, max)
+    );
 }
 
 function isValidEmail(email) {
@@ -148,18 +183,18 @@ async function sendEmail(env, advert) {
 
     // Build the plain-text body, including optional fields only when present.
     const lines = [
-        `Category:    ${category}`,
-        `Title:       ${title}`,
-        `Advertiser:  ${name}`,
-        `Email:       ${email}`,
+        `Category:      ${category}`,
+        `Title:         ${title}`,
+        `Advertiser:    ${name}`,
+        `Email:         ${email}`,
     ];
 
-    if (company) lines.push(`Business:    ${company}`);
-    if (location) lines.push(`Location:    ${location}`);
-    if (salary) lines.push(`Salary/price: ${salary}`);
-    if (jobType) lines.push(`Type:        ${jobType}`);
+    if (company) lines.push(`Business:      ${company}`);
+    if (location) lines.push(`Location:      ${location}`);
+    if (salary) lines.push(`Salary/price:  ${salary}`);
+    if (jobType) lines.push(`Type:          ${jobType}`);
     if (applyUrl) lines.push(`Apply/contact: ${applyUrl}`);
-    if (expires) lines.push(`Closing date: ${expires}`);
+    if (expires) lines.push(`Closing date:  ${expires}`);
 
     const text = `${lines.join("\n")}\n\n` + `Details:\n${description}\n`;
 
