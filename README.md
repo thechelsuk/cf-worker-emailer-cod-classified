@@ -1,4 +1,4 @@
-# cf-worker-emailer
+# cf-worker-emailer-cod-classified
 
 A cloudflare worker to handle website form
 
