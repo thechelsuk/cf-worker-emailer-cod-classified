@@ -4,7 +4,7 @@ compatibility_date = "2026-06-01"
 
 
 routes = [
-  { pattern = "api.cheltenham-od.uk/submission*", zone_name = "cheltenham-od.uk", custom_domain = true }
+  { pattern = "api.cheltenham-od.uk/submission*", zone_name = "cheltenham-od.uk" }
 ]
 
 [vars]
