@@ -1,5 +1,5 @@
 /**
- * Cloudflare Worker — Jekyll contact form handler
+ * Cloudflare Worker — Jekyll classified-advert form handler
  * - Honeypot field check
  * - Cloudflare Turnstile verification
  * - Basic time-trap (rejects submissions too fast to be human)
@@ -69,16 +69,37 @@ export default {
         }
 
         // --- Extract fields ---
-        const name = sanitize(form.get("name"));
-        const email = sanitize(form.get("email"));
-        const message = sanitize(form.get("message"));
+        const advert = {
+            name: sanitize(form.get("name")),
+            email: sanitize(form.get("email")),
+            category: sanitize(form.get("category")),
+            title: sanitize(form.get("title")),
+            company: sanitize(form.get("company")),
+            location: sanitize(form.get("location")),
+            salary: sanitize(form.get("salary")),
+            jobType: sanitize(form.get("job_type")),
+            description: sanitize(form.get("description")),
+            applyUrl: sanitize(form.get("apply_url")),
+            expires: sanitize(form.get("expires")),
+        };
 
-        if (!name || !email || !message || !isValidEmail(email)) {
+        // --- Validation ---
+        // Required (matches the form's `required` attributes):
+        //   name, email, category, title, description
+        // Everything else is optional.
+        if (
+            !advert.name ||
+            !advert.email ||
+            !advert.category ||
+            !advert.title ||
+            !advert.description ||
+            !isValidEmail(advert.email)
+        ) {
             return Response.redirect(env.ERROR_URL, 303);
         }
 
         // --- Send email via Resend ---
-        const sent = await sendEmail(env, { name, email, message });
+        const sent = await sendEmail(env, advert);
         if (!sent) {
             return Response.redirect(env.ERROR_URL, 303);
         }
@@ -110,13 +131,44 @@ async function verifyTurnstile(token, secret, ip) {
     return data.success === true;
 }
 
-async function sendEmail(env, { name, email, message }) {
+async function sendEmail(env, advert) {
+    const {
+        name,
+        email,
+        category,
+        title,
+        company,
+        location,
+        salary,
+        jobType,
+        description,
+        applyUrl,
+        expires,
+    } = advert;
+
+    // Build the plain-text body, including optional fields only when present.
+    const lines = [
+        `Category:    ${category}`,
+        `Title:       ${title}`,
+        `Advertiser:  ${name}`,
+        `Email:       ${email}`,
+    ];
+
+    if (company) lines.push(`Business:    ${company}`);
+    if (location) lines.push(`Location:    ${location}`);
+    if (salary) lines.push(`Salary/price: ${salary}`);
+    if (jobType) lines.push(`Type:        ${jobType}`);
+    if (applyUrl) lines.push(`Apply/contact: ${applyUrl}`);
+    if (expires) lines.push(`Closing date: ${expires}`);
+
+    const text = `${lines.join("\n")}\n\n` + `Details:\n${description}\n`;
+
     const payload = {
-        from: `Mailbox <${env.FROM_EMAIL}>`,
+        from: `Adverts <${env.FROM_EMAIL}>`,
         to: [env.TO_EMAIL],
         reply_to: email,
-        subject: `Mailbox: ${name}`,
-        text: `Name: ${name}\nEmail: ${email}\n\nMessage:\n${message}`,
+        subject: `New advert: ${title}`,
+        text,
     };
 
     const resp = await fetch("https://api.resend.com/emails", {
