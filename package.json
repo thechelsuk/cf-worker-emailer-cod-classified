@@ -1,6 +1,6 @@
 {
-    "name": "cf-worker-emailer",
-    "version": "1.0.8",
+    "name": "cf-worker-emailer-cod-classified",
+    "version": "1.0.9",
     "description": "Cloudflare Worker manager for contact form email sending.",
     "main": "worker/index.js",
     "scripts": {
