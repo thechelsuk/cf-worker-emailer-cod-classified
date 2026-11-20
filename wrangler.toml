@@ -9,7 +9,7 @@ routes = [
 
 [vars]
 ALLOWED_ORIGIN = "https://cheltenham-od.uk"
-THANKYOU_URL = "https:/cheltenham-od.uk/form/thanks"
+THANKYOU_URL = "https://cheltenham-od.uk/form/thanks"
 ERROR_URL = "https://cheltenham-od.uk/form/error"
 
 [observability.logs]
